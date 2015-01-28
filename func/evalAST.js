@@ -34,6 +34,33 @@ function isClosure(value) {
   return isArray(value) && value.length > 0 && value[0] === 'closure' || false;
 }
 
+function isCons(value) {
+  return isArray(value) && value.length > 0 && value[0] === 'cons' || false;
+}
+
+function isID(value) {
+  return isArray(value) && value.length > 0 && value[0] === 'id' || false;
+}
+
+function isWildcard(value) {
+  return isArray(value) && value.length === 1 && value[0] === '_';
+}
+
+function isObject(value) {
+  var type = typeof value;
+  return type == 'function' || (value && type == 'object') || false;
+}
+
+function isAtomEqual(x, y) {
+  x = isObject(x) ? x.valueOf() : x;
+  y = isObject(y) ? y.valueOf() : y;
+  return x === y;
+}
+
+function isUndefined(value) {
+  return typeof value == 'undefined';
+}
+
 // Variable bindings -----------------------------------------------------------
 
 var Env = function (name, value, enclose) {
@@ -47,22 +74,46 @@ Env.prototype.put = function (name, value) {
   return new Env(name, value, this)
 }
 
-Env.prototype.get = function (name, value) {
+Env.prototype.assq = function (name) {
   var env = this;
   while (env !== Env.empty) {
     if (env.name === name) {
-      return env.value
-    } else {
-      env = env.enclose;
+      return env;
     }
+    env = env.enclose;
   }
   throw new Error("KeyError: " + name);
+}
+
+Env.prototype.get = function (name, value) {
+  return this.assq(name).value;
+}
+
+Env.prototype.set = function (name, value) {
+  this.assq(name).value = value;
 }
 
 // Evaluation ------------------------------------------------------------------
 
 function makeClosure(params, body, env) {
   return ['closure', params, body, env];
+}
+
+function makeCons(car, cdr) {
+  return ['cons', car, cdr];
+}
+
+function consFoldr(cons, f, acc) {
+  if (isNull(cons)) {
+    return acc;
+  } else if (isCons(cons)) {
+    var car = cons[1],
+        cdr = cons[2];
+    acc = consFoldr(cdr, f, acc);
+    return f(acc, car);
+  } else {
+    throw new Error("TypeError: " + cons + " is not a cons");
+  }
 }
 
 var operators = {
@@ -104,6 +155,25 @@ function evalToBoolean(ast, env, op) {
   }
 }
 
+function evalCall(callee, args) {
+  var params = callee[1],
+      body = callee[2],
+      env = callee[3];
+  if (params.length < args.length)
+    throw new Error("TypeError: function takes at most "+ params.length + " "+ (params.length <= 1 ? "argument" : "arguments") + " (" + args.length + " given)");
+
+  env = args.reduce(function (env, arg, i) {
+    return env.put(params[i], arg);
+  }, env);
+
+  if (params.length === args.length) {
+    return evalML(env)(body);
+  } else {
+    // currying
+    return makeClosure(params.slice(args.length), body, env);
+  }
+}
+
 var evaluators = {
   // ['id', x]
   'id': function (ast, env) {
@@ -120,31 +190,19 @@ var evaluators = {
   'call': function (ast, env) {
     var callee = evalML(env)(ast[1]),
         args = ast.slice(2).map(evalML(env));
-    if (!isClosure(callee)) {
+    if (!isClosure(callee))
       throw Error("TypeError: " + ast + " is not callable");
-    }
 
-    var params = callee[1],
-        body = callee[2],
-        env = callee[3];
-    if (params.length !== args.length) {
-      throw new Error("TypeError: function takes exactly "
-                      + params.length + " "
-                      + (params.length <= 1 ? "argument" : "arguments")
-                      + " (" + args.length + " given)");
-    }
-
-    env = params.reduce(function (env, param, i) {
-      return env.put(param, args[i]);
-    }, env);
-    return evalML(env)(body);
+    return evalCall(callee, args);
   },
   // ['let', x, e1, e2]
   'let': function (ast, env) {
     var name = ast[1],
         value = ast[2],
         body = ast[3];
-    env = env.put(name, evalML(env)(value));
+    env = env.put(name, undefined);
+    // let/rec
+    env.value = evalML(env)(value);
     return evalML(env)(body);
   },
   // ['if', e1, e2, e3]
@@ -174,6 +232,89 @@ var evaluators = {
         y = ast[2];
     return evalToBoolean(x, env, "||") || evalToBoolean(y, env, "||");
   },
+  // ['cons', e1, e2]
+  'cons': function (ast, env) {
+    var car = evalML(env)(ast[1]),
+        cdr = evalML(env)(ast[2]);
+    return makeCons(car, cdr);
+  },
+  // ['match', e, p1, e1, p2, e2, ...]
+  'match': function (ast, env) {
+    var expr = evalML(env)(ast[1]),
+        clauses = ast.slice(2);
+    for (var i = 0; i < clauses.length; i += 2) {
+      var pattern = clauses[i],
+          action = clauses[i + 1],
+          newEnv = patternMatch(pattern, expr, env);
+      if (!isNull(newEnv)) {
+        return evalML(newEnv)(action);
+      }
+    }
+    throw new Error("ValueError: pattern matching exhausted");
+  },
+  // ['set', x, e]
+  'set': function (ast, env) {
+    var lhs = ast[1],
+        rhs = evalML(env)(ast[2]);
+    env.set(lhs, rhs);
+    return rhs;
+  },
+  // ['seq', e1, e2]
+  'seq': function (ast, env) {
+    var head = ast[1],
+        tail = ast[2];
+    evalML(env)(head);
+    return evalML(env)(tail);
+  },
+  // ['listComp', e, x, elist, [, epred]]
+  'listComp': function (ast, env) {
+    var map = ast[1],
+        iter = ast[2],
+        target = evalML(env)(ast[3]),
+        pred = ast.length === 5 ? ast[4] : undefined;
+    return consFoldr(target, function (acc, x) {
+      var newEnv = env.put(iter, x);
+      if (!isUndefined(pred) && !evalML(newEnv)(pred)) {
+        return acc;
+      } else {
+        return makeCons(evalML(newEnv)(map), acc);
+      }
+    }, null);
+  },
+  // ['delay', e]
+  'delay': function (ast, env) {
+    var value = ast[1];
+    return makeClosure([], value, env);
+  },
+  // ['force', e]
+  'force': function (ast, env) {
+    var value = evalML(env)(ast[1]);
+    if (isClosure(value)) {
+      return evalCall(value, []);
+    } else {
+      throw new Error("TypeError: " + value + " is not a thunk");
+    }
+  },
+}
+
+function patternMatch(pat, expr, env) {
+  if (isAtom(pat) && isAtomEqual(pat, expr)) {
+    return env;
+  } else if (isCons(pat) && isCons(expr)) {
+    var patCar = pat[1],
+        patCdr = pat[2],
+        exprCar = expr[1],
+        exprCdr = expr[2],
+        newEnv = patternMatch(patCar, exprCar, env);
+    return newEnv && patternMatch(patCdr, exprCdr, newEnv);
+  } else if (isWildcard(pat)) {
+    return env;
+  } else if (isID(pat)) {
+    var name = pat[1];
+    return env.put(name, expr);
+  } else {
+    return null;
+  }
 }
 
 function evalML(env) {
