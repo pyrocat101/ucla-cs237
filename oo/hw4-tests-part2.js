@@ -4,7 +4,7 @@ OO.initializeCT();
 
 // Tests for Part II
 
-tests(
+tests(JS,
   {
     name: 'times',
     code: '// 6 * 7\n' +
@@ -25,7 +25,7 @@ tests(
   },
   {
     name: 'Point, sending messages to Numbers',
-    code: '// class Point { var x, y; }\n' +
+    code: '// class Point with x, y;\n' +
           'OO.declareClass("Point", "Object", ["x", "y"]);\n\n' +
           '// def Point.initialize(x, y) {\n' +
           '//   super.initialize();\n' +
@@ -61,7 +61,7 @@ tests(
   },
   {
     name: 'ThreeDeePoint, sending messages to Numbers',
-    code: '// class ThreeDeePoint { var z; }\n' +
+    code: '// class ThreeDeePoint extends Point with z;\n' +
           'OO.declareClass("ThreeDeePoint", "Point", ["z"]);\n\n' +
           '// def ThreeDeePoint.initialize(x, y, z) {\n' +
           '//   super.initialize(x, y);\n' +

@@ -1,19 +1,10 @@
-// This function is used by the test harness to pretty-print values.
-// Right now it doesn't handle undefined, functions, NaN, Number.POSITIVE_INFINITY, etc.
-// Feel free to modify / extend it as you see fit.
-// (FYI, pretty-printing is not used by our grading scripts.)
-
-function prettyPrintValue(value) {
-  return JSON.stringify(value);
-}
-
 // Initialize the class table!
 
 OO.initializeCT();
 
 // Tests for Part I
 
-tests(
+tests(JS,
   {
     name: 'method declaration and send',
     code: '// def Object.add(x, y) { return x + y; }\n' +
@@ -24,7 +15,7 @@ tests(
   },
   {
     name: 'Point',
-    code: '// class Point { var x, y; }\n' +
+    code: '// class Point with x, y;\n' +
           'OO.declareClass("Point", "Object", ["x", "y"]);\n\n' +
           '// def Point.initialize(x, y) {\n' +
           '//   super.initialize();\n' +
@@ -60,7 +51,7 @@ tests(
   },
   {
     name: 'ThreeDeePoint',
-    code: '// class ThreeDeePoint { var z; }\n' +
+    code: '// class ThreeDeePoint extends Point with z;\n' +
           'OO.declareClass("ThreeDeePoint", "Point", ["z"]);\n\n' +
           '// def ThreeDeePoint.initialize(x, y, z) {\n' +
           '//   super.initialize(x, y);\n' +
@@ -98,7 +89,7 @@ tests(
   },
   {
     name: 'OK to have a method and an instance variable with the same name',
-    code: '// class C { var value; }\n' +
+    code: '// class C with value;\n' +
           'OO.declareClass("C", "Object", ["value"]);\n\n' +
           '// def C.initialize(value) { this.value = value; }\n' +
           'OO.declareMethod("C", "initialize", function(_this, value) {\n' +
