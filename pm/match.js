@@ -87,11 +87,21 @@ function matchPattern(value, pattern, matched) {
 function matchArray(patterns, values, matched) {
   var i = 0, j = 0;
   while (true) {
-    if (i === patterns.length || j === values.length) {
-      return i === patterns.length && j === values.length ? matched : null;
+    if (i === patterns.length) {
+      return j === values.length ? matched : null;
+    } else if (j === values.length) {
+      // all many()
+      while (i < patterns.length) {
+        if (!isMany(patterns[i])) {
+          return null;
+        }
+        matched.push([]);
+        i++;
+      }
+      return matched;
     } else if (isMany(patterns[i])) {
       // many
-      // greedy match without backtracking (and alweays succeed)
+      // greedy match without backtracking (and always succeed)
       var pat = patterns[i].pat;
       var manyMatched = [];
       while (true) {
