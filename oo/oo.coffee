@@ -294,20 +294,20 @@ PM = do ->
         # many
         # greedy match without backtracking (and always succeed)
         pat = patterns[i].pat
-        manyMatched = []
+        subMatched = []
         loop
           if j == values.length
             # match to the end of value array
             i++
             break
           else
-            m = matchPattern(values[j], pat, manyMatched)
+            m = matchPattern(values[j], pat, subMatched)
             if isNull(m)
               # match failed
               i++
               break
             j++
-        return appendMatch(matched, manyMatched)
+        matched = appendMatch(matched, subMatched)
       else
         matched = matchPattern(values[j], patterns[i], matched)
         if isNull(matched)

@@ -408,7 +408,7 @@ PM = (function() {
     }
   };
   matchArray = function(patterns, values, matched) {
-    var i, j, m, manyMatched, pat;
+    var i, j, m, pat, subMatched;
     i = 0;
     j = 0;
     while (true) {
@@ -429,13 +429,13 @@ PM = (function() {
         return matched;
       } else if (isMany(patterns[i])) {
         pat = patterns[i].pat;
-        manyMatched = [];
+        subMatched = [];
         while (true) {
           if (j === values.length) {
             i++;
             break;
           } else {
-            m = matchPattern(values[j], pat, manyMatched);
+            m = matchPattern(values[j], pat, subMatched);
             if (isNull(m)) {
               i++;
               break;
@@ -443,7 +443,7 @@ PM = (function() {
             j++;
           }
         }
-        return appendMatch(matched, manyMatched);
+        matched = appendMatch(matched, subMatched);
       } else {
         matched = matchPattern(values[j], patterns[i], matched);
         if (isNull(matched)) {
@@ -463,9 +463,6 @@ PM = (function() {
 })();
 
 _ = PM._, many = PM.many, match = PM.match;
-
-
-/* global O */
 
 O.transAST = function(ast) {
   return "OO.initializeCT();\n" + (O.translate(ast));

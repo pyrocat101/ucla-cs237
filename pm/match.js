@@ -91,26 +91,24 @@ function matchArray(patterns, values, matched) {
       return j === values.length ? matched : null;
     } else if (j === values.length) {
       // all many()
-      while (i < patterns.length) {
+      for (; i < patterns.length; i++) {
         if (!isMany(patterns[i])) {
           return null;
         }
         matched.push([]);
-        i++;
       }
-      return matched;
     } else if (isMany(patterns[i])) {
       // many
       // greedy match without backtracking (and always succeed)
       var pat = patterns[i].pat;
-      var manyMatched = [];
+      var subMatched = [];
       while (true) {
         if (j === values.length) {
           // match to the end of value array
           i++;
           break;
         } else {
-          var m = matchPattern(values[j], pat, manyMatched);
+          var m = matchPattern(values[j], pat, subMatched);
           if (isNull(m)) {
             // match failed
             i++;
@@ -119,7 +117,7 @@ function matchArray(patterns, values, matched) {
           j++;
         }
       }
-      return appendMatch(matched, manyMatched);
+      matched = appendMatch(matched, subMatched);
     } else {
       matched = matchPattern(values[j], patterns[i], matched);
       if (isNull(matched)) {

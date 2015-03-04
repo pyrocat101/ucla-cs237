@@ -17,6 +17,10 @@ function isNumber(x) {
   return typeof x === 'number';
 }
 
+function isOne(x) {
+	return x === 1;
+}
+
 // Tests!
 
 tests(
@@ -83,6 +87,84 @@ tests(
           '  [3], function() { return 3; }\n' +
           ')',
     shouldThrow: true
+  },
+  {
+	  name: 'many 97',
+	  code: 'match([1, 2, 3, "and", 4], [many(when(isNumber)), many(when(isNumber)), "and", _], ' + 
+	    	'  function() { return JSON.stringify(arguments); })',
+	  expected: '{"0":[1,2,3],"1":[],"2":4}'
+  },
+  {
+	  name: 'many 99',
+	  code: 'match( [[3,[4,5]], [3,[7,8]]],' + 
+          	'  [many([_,[many(4),many(7),_]])],' + 
+          	'  function (xs) { return JSON.stringify(xs);})',
+      expected: "[3,[],[],5,3,[],[],8]"
+  },
+  {
+	  name: 'many 98_1',
+	  code: 'match([1,2,3], [many(_)], function() { return JSON.stringify(arguments); })',
+	  expected: '{"0":[1,2,3]}'
+  },
+  {
+	  name: 'many 98_2',
+	  code: 'match([1,2,3], [many(when(isOne)),many(_)], function() { return JSON.stringify(arguments); })',
+	  expected: '{"0":[1],"1":[2,3]}'
+  },
+  {
+	  name: 'many 98_3',
+	  code: 'match([2,2,3], [many(when(isOne)),many(_)], function() { return JSON.stringify(arguments); })',
+	  expected: '{"0":[],"1":[2,2,3]}'
+  },
+  {
+	  name: 'many 98_4',
+	  code: 'match([1,2,3], [many(when(isOne)),2,many(_)], function() { return JSON.stringify(arguments); })',
+	  expected: '{"0":[1],"1":[3]}'
+  },
+  {
+	  name: 'many 98_5',
+	  code: 'match([[1,2],[3,4]], [many([many(_)])], function() { return JSON.stringify(arguments); })',
+	  expected: '{"0":[[1,2],[3,4]]}'
+  },
+  {
+	  name: 'match failed test 1',
+	  code: 'match(["+", 5], ["+", _, _], function(x, y) { return x + y; })',
+	  shouldThrow: true
+  },
+  {
+	  name: 'match failed test 2',
+	  code: 'match(["+", 5, 7], ["+", _], function(x) { return x + 2; })',
+	  shouldThrow: true
+  },
+  {
+	  name: 'match failed test 3',
+	  code: 'match([1, 2, 3, "and", 4], [many(_), "and", _], function(xs, x) { return 1; })',
+	  shouldThrow: true
+  },
+  {
+	  name: 'no value for many 1',
+	  code: 'match([1, 2, 3], [many(when(isNumber)), many(when(isOne))], function() { return JSON.stringify(arguments); })',
+	  expected: '{"0":[1,2,3],"1":[]}'
+  },
+  {
+	  name: 'no value for many 2',
+	  code: 'match([], [many(when(isNumber))], function() { return JSON.stringify(arguments); })',
+	  expected: '{"0":[]}'
+  },
+  {
+	  name: 'match example',
+	  code: 'match([1, 2, 3, "and", 4], [many(when(isNumber)), "and", _], function(xs, x) { return xs[1] * 10 + x; })',
+	  expected: 24
+  },
+  {
+	  name: 'match test 1',
+	  code: 'match([1, 2, 3, "and", 4], [many(when(isNumber)), "and"], function(xs) {return 1;}, [many(when(isNumber)), "and", _], function(xs, x) {return 2;})',
+	  expected: 2
+  },
+  {
+	  name: 'match test 2',
+	  code: 'match([1, 2, 3, 4], [many(when(isNumber)), "and"], function(xs) {return 1;}, [many(when(isNumber))], function(xs) {return 2;})',
+	  expected: 2
   }
 );
 
