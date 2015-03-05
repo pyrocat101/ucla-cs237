@@ -7,7 +7,6 @@ isFalse  = (o) -> o is false
 isNull   = (o) -> o is null
 isArray  = (o) -> Array.isArray o
 isNumber = (o) -> typeof o == 'number'
-isReturn = (o) -> isArray(o) and o.length > 0 and o[0] == 'return'
 
 
 # Collection -------------------------------------------------------------------
@@ -322,6 +321,18 @@ PM = do ->
 
 # Tranlation ------------------------------------------------------------------
 
+O.stmtTags =
+  'program': true
+  'classDecl': true
+  'methodDecl': true
+  'varDecls': true
+  'return': true
+  'setVar': true
+  'setInstVar': true
+
+O.isStmt = (ast) ->
+  O.stmtTags.hasOwnProperty ast[0]
+
 O.transAST = (ast) ->
   """
   OO.initializeCT();
@@ -433,10 +444,10 @@ O.translateBlock = (params, body) ->
       block.push O.translate(body[i]) + ';'
       i++
     last = body[body.length - 1]
-    unless isReturn(last)
-      block.push "return #{O.translate last};"
-    else
+    if O.isStmt(last)
       block.push "#{O.translate(last)};"
+    else
+      block.push "return #{O.translate last};"
   params = params.join(', ')
   body = block.join('\n')
   """
