@@ -44,7 +44,7 @@ StringSet = (function() {
     return this.hasOwnProperty(x);
   };
 
-  StringSet.prototype.length = function() {
+  StringSet.prototype.getLength = function() {
     return Object.keys(this).length;
   };
 
@@ -75,9 +75,12 @@ MClass = (function() {
   function MClass(superClass, attrs) {
     this.superClass = superClass;
     this.attrs = new StringSet(attrs);
+    if ((attrs != null) && this.attrs.getLength() < attrs.length) {
+      throw new Error("duplicate instance variable declaration");
+    }
     this.methods = {};
     if (superClass instanceof MClass) {
-      if (StringSet.intersect(this.attrs, superClass.attrs).length > 0) {
+      if (StringSet.intersect(this.attrs, superClass.attrs).getLength() > 0) {
         throw new Error('duplicate instance variable declaration');
       }
       this.attrs = StringSet.union(this.attrs, superClass.attrs);
@@ -179,10 +182,10 @@ OO.initObject = function() {
     return false;
   }));
   this.declareMethod('Object', '===', function(_this, other) {
-    return _this === other;
+    return _this.getEigen() === other.getEigen();
   });
   return this.declareMethod('Object', '!==', function(_this, other) {
-    return _this !== other;
+    return _this.getEigen() !== other.getEigen();
   });
 };
 
@@ -264,7 +267,11 @@ OO.hasClass = function(name) {
 };
 
 OO.getClass = function(name) {
-  return this.classes[name];
+  if (this.hasClass(name)) {
+    return this.classes[name];
+  } else {
+    throw new Error("undefined class: " + name);
+  }
 };
 
 OO.classOf = function(o) {

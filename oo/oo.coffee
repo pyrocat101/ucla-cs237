@@ -25,7 +25,7 @@ class StringSet
   contains: (x) ->
     @hasOwnProperty x
 
-  length: ->
+  getLength: ->
     Object.keys(this).length
 
   @union: (xs, ys) ->
@@ -49,9 +49,11 @@ class MClass
   constructor: (superClass, attrs) ->
     @superClass = superClass
     @attrs = new StringSet(attrs)
+    if attrs? and @attrs.getLength() < attrs.length
+      throw new Error("duplicate instance variable declaration")
     @methods = {}
     if superClass instanceof MClass
-      if StringSet.intersect(@attrs, superClass.attrs).length > 0
+      if StringSet.intersect(@attrs, superClass.attrs).getLength() > 0
         throw new Error('duplicate instance variable declaration')
       @attrs = StringSet.union(@attrs, superClass.attrs)
 
@@ -117,8 +119,10 @@ OO.initObject = ->
   @classes = Object: new MClass(null, [])
   @declareMethod 'Object', 'initialize', (->)
   @declareMethod 'Object', 'isNumber', (-> false)
-  @declareMethod 'Object', '===', (_this, other) -> _this is other
-  @declareMethod 'Object', '!==', (_this, other) -> _this isnt other
+  @declareMethod 'Object', '===', (_this, other) ->
+    _this.getEigen() is other.getEigen()
+  @declareMethod 'Object', '!==', (_this, other) ->
+    _this.getEigen() isnt other.getEigen()
 
 OO.declareClass = (name, superClassName, instVarNames) ->
   if @hasClass(name)
@@ -173,7 +177,11 @@ OO.hasClass = (name) ->
   @classes.hasOwnProperty name
 
 OO.getClass = (name) ->
-  @classes[name]
+  if @hasClass name
+    @classes[name]
+  else
+    throw new Error("undefined class: #{name}")
+
 
 OO.classOf = (o) ->
   o.getClass()
