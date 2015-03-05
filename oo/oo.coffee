@@ -40,34 +40,65 @@ class StringSet
       if ys.contains(x)
         s.add x
       return
-    s
+    return s
 
 
-# Ruby/Smalltalk style class ---------------------------------------------------
+# Object model -----------------------------------------------------------------
 
-class Class
+class MClass
   constructor: (superClass, attrs) ->
-    @__super__ = superClass
-    @__attrs__ = new StringSet(attrs)
-    @__meths__ = {}
-    if superClass instanceof Class
-      if StringSet.intersect(@__attrs__, superClass.__attrs__).length > 0
+    @superClass = superClass
+    @attrs = new StringSet(attrs)
+    @methods = {}
+    if superClass instanceof MClass
+      if StringSet.intersect(@attrs, superClass.attrs).length > 0
         throw new Error('duplicate instance variable declaration')
-      @__attrs__ = StringSet.union(@__attrs__, superClass.__attrs__)
+      @attrs = StringSet.union(@attrs, superClass.attrs)
 
   hasMethod: (name) ->
-    @__meths__.hasOwnProperty name
+    @methods.hasOwnProperty name
 
   addMethod: (selector, fn) ->
-    @__meths__[selector] = fn
+    @methods[selector] = fn
 
   getMethod: (selector) ->
-    @__meths__[selector]
+    return @methods[selector]
 
   hasAttr: (name) ->
-    @__attrs__.contains name
+    return @attrs.contains name
 
-  getSuper: -> @__super__
+  getSuperclass: ->
+    return @superClass
+
+class MObject
+  constructor: (@klass) ->
+    @vars = Object.create(null)
+
+  setVar: (name, value) ->
+    @vars[name] = value
+
+  getVar: (name) ->
+    return @vars[name]
+
+  getClass: ->
+    return @klass
+
+  getEigen: ->
+    return this
+
+  getSuper: ->
+    if @klass.getSuperclass() is null
+      return null
+    else
+      return new MProxy(@klass.getSuperclass(), @getEigen())
+
+class MProxy extends MObject
+  constructor: (@klass, obj) ->
+    @obj = obj
+    @vars = obj.vars
+
+  getEigen: ->
+    return @obj
 
 
 # Ruby/Smalltalk style object model --------------------------------------------
@@ -83,7 +114,7 @@ OO.initializeCT = ->
   @initBlock()
 
 OO.initObject = ->
-  @classes = Object: new Class(null, [])
+  @classes = Object: new MClass(null, [])
   @declareMethod 'Object', 'initialize', (->)
   @declareMethod 'Object', 'isNumber', (-> false)
   @declareMethod 'Object', '===', (_this, other) -> _this is other
@@ -93,7 +124,7 @@ OO.declareClass = (name, superClassName, instVarNames) ->
   if @hasClass(name)
     throw new Error('duplicate class declaration')
   superClass = @getClass(superClassName)
-  @classes[name] = new Class(superClass, instVarNames)
+  @classes[name] = new MClass(superClass, instVarNames)
 
 OO.declareMethod = (className, selector, implFn) ->
   cls = @getClass(className)
@@ -103,27 +134,27 @@ OO.declareMethod = (className, selector, implFn) ->
 
 OO.instantiate = (className, args...) ->
   cls = @getClass(className)
-  o = Object.create(null)
-  o.__class__ = cls
-  @_send cls, 'initialize', o, args
-  o
+  o = new MObject(cls)
+  @_send o, 'initialize', args
+  return o
 
-OO._send = (cls, selector, recv, args) ->
-  while cls != null
-    if cls.hasMethod(selector)
-      fn = cls.getMethod(selector)
+OO._send = (recv, selector, args) ->
+  while recv != null
+    klass = recv.getClass()
+    if klass.hasMethod(selector)
+      fn = klass.getMethod(selector)
       return fn.bind(null, recv).apply(null, args)
-    cls = cls.getSuper()
+    recv = recv.getSuper()
   throw new Error("message not understood: #{selector}")
 
 OO.send = (recv, selector, args...) ->
   recv = @box(recv)
-  @_send @classOf(recv), selector, recv, args
+  @_send recv, selector, args
 
 OO.superSend = (superClassName, recv, selector, args...) ->
   recv = @box(recv)
-  cls = @getClass(superClassName)
-  @_send cls, selector, recv, args
+  recv = new MProxy(@getClass(superClassName), recv)
+  @_send recv, selector, args
 
 OO.hasInstVar = (recv, instVarName) ->
   @classOf(recv).hasAttr instVarName
@@ -131,12 +162,12 @@ OO.hasInstVar = (recv, instVarName) ->
 OO.getInstVar = (recv, instVarName) ->
   if !@hasInstVar(recv, instVarName)
     throw new Error('undeclared instance variable')
-  recv[instVarName]
+  recv.getVar(instVarName)
 
 OO.setInstVar = (recv, instVarName, value) ->
   unless @hasInstVar(recv, instVarName)
     throw new Error('undeclared instance variable')
-  recv[instVarName] = value
+  recv.setVar(instVarName, value)
 
 OO.hasClass = (name) ->
   @classes.hasOwnProperty name
@@ -145,7 +176,10 @@ OO.getClass = (name) ->
   @classes[name]
 
 OO.classOf = (o) ->
-  o.__class__
+  o.getClass()
+
+OO.getSuper = (o) ->
+  o.getSuper()
 
 
 # Singletons -------------------------------------------------------------------
@@ -221,7 +255,7 @@ OO.initBlock = ->
     OO.setInstVar _this, 'fn', fn
   @declareMethod 'Block', 'call', (_this, args...) ->
     fn = OO.getInstVar(_this, 'fn')
-    fn.call null, args
+    fn.apply null, args
 
 
 # Pattern Match ----------------------------------------------------------------
@@ -407,7 +441,7 @@ O.translateSetVar = (lhs, rhs) ->
   "#{lhs} = #{O.translate rhs}"
 
 O.translateSetInstVar = (sel, rhs) ->
-  "_this.#{sel} = #{O.translate rhs}"
+  "OO.setInstVar(_this, \"#{sel}\", #{O.translate rhs})"
 
 O.translateExprStmt = (expr) ->
   O.translate expr
@@ -418,7 +452,7 @@ O.translateFalse = -> 'OO.singletons.False'
 O.translateNumber = (num) -> num
 
 O.translateGetVar = (sel) -> sel
-O.translateGetInstVar = (sel) -> "_this.#{sel}"
+O.translateGetInstVar = (sel) -> "OO.getInstVar(_this, \"#{sel}\")"
 O.translateThis = -> '_this'
 
 O.translateNew = (name, args) ->
@@ -433,14 +467,15 @@ O.translateSend = (recv, sel, args) ->
   "OO.send(#{recv}, #{args})"
 
 O.translateSuperSend = (sel, args) ->
-  args = args.map(O.translate).join(', ')
-  "OO._send(OO.classOf(_this).getSuper(), '#{sel}', _this, [#{args}])"
+  args = args.map (a) -> O.translate a
+  args = ["\"#{sel}\""].concat(args).join(', ')
+  "OO.send(OO.getSuper(_this), #{args})"
 
 O.translateBlock = (params, body) ->
   block = []
   if body.length > 0
     i = 0
-    while i < block.length - 1
+    while i < body.length - 1
       block.push O.translate(body[i]) + ';'
       i++
     last = body[body.length - 1]
