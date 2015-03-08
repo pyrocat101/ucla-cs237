@@ -6,6 +6,8 @@
 - [X] [hw4][oo]
 - [X] [hw5][oo]
 - [X] [hw6][log]
+    + [X] occurrence check
+    + [ ] negation & cut operator
 
 [func]: http://pyrocat101.github.io/ucla-cs237/func/index.html
 [pm]: http://pyrocat101.github.io/ucla-cs237/pm/index.html
