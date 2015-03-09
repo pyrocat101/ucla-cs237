@@ -7,7 +7,7 @@
 
 Rule.idCounter = 0;
 
-Rule.prototype.makeCopyWithFreshVarNames = function() {
+Rule.prototype.makeCopyWithFreshVarNames = function () {
   var id = Rule.idCounter++;
   // append $id to all variables
   var head = this.head.rename(id);
@@ -24,12 +24,16 @@ Var.prototype.rename = function (id) {
   return new Var(this.name + '$' + id);
 };
 
-Clause.prototype.rewrite = function(subst) {
+Num.prototype.rename = function (id) {
+  return this;
+};
+
+Clause.prototype.rewrite = function (subst) {
   var args = this.args.map(function (t) { return t.rewrite(subst); });
   return new Clause(this.name, args);
 };
 
-Var.prototype.rewrite = function(subst) {
+Var.prototype.rewrite = function (subst) {
   var value = subst.lookup(this.name);
   if (value !== undefined) {
     return value;
@@ -38,12 +42,21 @@ Var.prototype.rewrite = function(subst) {
   }
 };
 
+Num.prototype.rewrite = function (subst) {
+  return this;
+};
+
 // -----------------------------------------------------------------------------
 // Part II: Subst.prototype.unify(term1, term2)
 // -----------------------------------------------------------------------------
 
+// Predicate -------------------------------------------------------------------
+
 function isVar (o) { return o instanceof Var; }
+function isNum (o) { return o instanceof Num; }
 function isClause (o) { return o instanceof Clause; }
+
+// Free varaiable --------------------------------------------------------------
 
 Clause.prototype.hasVar = function (v) {
   return this.args.some(function (t) { return t.hasVar(v); });
@@ -53,8 +66,20 @@ Var.prototype.hasVar = function (v) {
   return v === this.name;
 };
 
+Num.prototype.hasVar = function (v) {
+  return false;
+}
+
+// Unification -----------------------------------------------------------------
+
+function isFailedUnification (e) {
+  return e.message === "unification failed";
+}
+
 Subst.prototype.unify = function (term1, term2) {
   if (term1 === term2) {
+    return this;
+  } else if (isNum(term1) && isNum(term2) && term1.x == term2.x) {
     return this;
   } else if (isVar(term1)) {
     return this.unifyVariable(term1.name, term2);
@@ -98,6 +123,8 @@ Subst.prototype.unifyList = function (list1, list2) {
 // Part III: Program.prototype.solve()
 // -----------------------------------------------------------------------------
 
+// Humane tracing --------------------------------------------------------------
+
 Goal.prototype.show = function () {
   return "Goal { rule: " + this.rule.show() + "; idx: " + this.idx + " }";
 };
@@ -125,6 +152,10 @@ Var.prototype.show = function () {
   return this.name;
 };
 
+Num.prototype.show = function () {
+  return this.x;
+}
+
 function showStack (stack) {
   var sb = "stack: [\n";
   stack.forEach(function (g) {
@@ -136,11 +167,7 @@ function showStack (stack) {
   return sb;
 }
 
-Rule.prototype.rewrite = function (subst) {
-  var head = this.head.rewrite(subst),
-      body = this.body.map(function (c) { return c.rewrite(subst); });
-  return new Rule(head, body);
-};
+// Iterator --------------------------------------------------------------------
 
 function Iterator (next) {
   this.next = next;
@@ -171,6 +198,8 @@ Iterator.prototype.drain = function () {
   }
 };
 
+// Goal ------------------------------------------------------------------------
+
 function Goal (rule, parent) {
   this.rule = rule;
   this.parent = parent;
@@ -197,6 +226,14 @@ Goal.prototype.rewrite = function (subst) {
   return goal;
 };
 
+Rule.prototype.rewrite = function (subst) {
+  var head = this.head.rewrite(subst),
+      body = this.body.map(function (c) { return c.rewrite(subst); });
+  return new Rule(head, body);
+};
+
+// Rule database ---------------------------------------------------------------
+
 function Database () {
   this.rules = Object.create(null);
 }
@@ -221,6 +258,8 @@ Database.prototype.match = function (clause) {
   });
 };
 
+// SLD resolution --------------------------------------------------------------
+
 Program.prototype.solve = function (trace) {
   var db = new Database();
   // store all facts and rules
@@ -231,6 +270,7 @@ Program.prototype.solve = function (trace) {
 Program.prototype.prove = function (db, query, trace) {
   var rule = new Rule(new Clause("*root*"), query),
       goal = new Goal(rule, null),
+      // TODO: move trace logic to stack functions
       stack = [goal];
   // TRACE stack
   if (trace) {
@@ -271,31 +311,117 @@ Program.prototype.prove = function (db, query, trace) {
           // END TRACE
         }
       } else {
-        var clause = goal.currentPremise(),
-            rules = db.match(clause);
-        rules.reverse();
-        rules.forEach(function prove$forEach (r) {
-          r = r.makeCopyWithFreshVarNames();
-          try {
-            var subst = new Subst().unify(clause, r.head);
-                subgoal = new Goal(r.rewrite(subst), goal);
-            // TRACE stack
-            if (trace) {
-              console.log("\u21e3 push subgoal %s", subgoal.show());
+        var clause = goal.currentPremise();
+        if (Program.isBuiltin(clause)) {
+          Program.proveBuiltin(clause, goal, stack, trace);
+        } else {
+          var rules = db.match(clause);
+          rules.reverse();
+          rules.forEach(function prove$forEach (r) {
+            r = r.makeCopyWithFreshVarNames();
+            try {
+              var subst = new Subst().unify(clause, r.head);
+                  subgoal = new Goal(r.rewrite(subst), goal);
+              // TRACE stack
+              if (trace) {
+                console.log("\u21e3 push subgoal %s", subgoal.show());
+              }
+              // END TRACE
+              stack.push(subgoal);
+            } catch (e) {
+              if (isFailedUnification(e)) {
+                return;
+              } else {
+                throw e;
+              }
             }
-            // END TRACE
-            stack.push(subgoal);
-          } catch (e) {
-            if (e.message !== "unification failed") {
-              throw e;
-            } else {
-              return;
-            }
-          }
-        });
+          });
+        }
       }
       loopCount++;
     }
     return false;
   });
+};
+
+// Builtin Predicates ----------------------------------------------------------
+
+Clause.prototype.getFunctor = function () {
+  return this.name + "/" + this.args.length;
+};
+
+Program.builtins = {
+  'is/2': function is$2 (clause, parent, stack, trace) {
+    var lhs = clause.args[0],
+        rhs = clause.args[1];
+    try {
+      var subst = new Subst().unify(lhs, Program.evalFunction(rhs));
+      clause = clause.rewrite(subst);
+      // TRACE stack
+      if (trace) {
+        console.log("\u21e3 push subgoal %s", subgoal.show());
+      }
+      // END TRACE
+      stack.push(new Goal(new Rule(clause), parent));
+    } catch (e) {
+      if (isFailedUnification(e)) {
+        return;
+      } else {
+        throw e;
+      }
+    }
+  },
+};
+
+Program.isBuiltin = function (c) {
+  return Program.builtins.hasOwnProperty(c.getFunctor());
+};
+
+Program.proveBuiltin = function (clause, parent, stack, trace) {
+  var functor = clause.getFunctor(),
+      predicate = Program.builtins[functor];
+  predicate(clause, parent, stack, trace);
+};
+
+// Arithmetic Functions --------------------------------------------------------
+
+function makeArithmeticFn (fn) {
+  return function () {
+    var args = Array.prototype.slice.call(arguments);
+    args = args.map(function (value) {
+      if (!isNum(value)) {
+        throw new Error("`" + value + "/0' is not a function");
+      } else {
+        return value.x;
+      }
+    });
+    return new Num(fn.apply(null, args));
+  };
+}
+
+Program.functions = {
+  '+/1': makeArithmeticFn(function (x)    { return x;     }),
+  '-/1': makeArithmeticFn(function (x)    { return -x;    }),
+  '+/2': makeArithmeticFn(function (x, y) { return x + y; }),
+  '-/2': makeArithmeticFn(function (x, y) { return x - y; }),
+  '*/2': makeArithmeticFn(function (x, y) { return x * y; }),
+  '//2': makeArithmeticFn(function (x, y) { return x / y; }),
+};
+
+Program.isFunction = function (c) {
+  return Program.functions.hasOwnProperty(c.getFunctor());
+};
+
+Program.evalFunction = function (expr) {
+  if (isClause(expr)) {
+    var functor = expr.getFunctor();
+    if (Program.isFunction(expr)) {
+      var args = expr.args.map(Program.evalFunction);
+      return Program.functions[functor].apply(null, args);
+    } else {
+      throw new Error("`" + functor + "' is not a function");
+    }
+  } else {
+    return expr;
+  }
 };

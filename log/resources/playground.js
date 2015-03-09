@@ -31,7 +31,7 @@ function insertPlayground(L, optSource) {
         { className: "variable" }
       );
     },
-    symbol: function(_, _) {
+    symbol: function(_) {
       conc.doc.markText(
         conc.doc.posFromIndex(this.interval.startIdx),
         conc.doc.posFromIndex(this.interval.endIdx),
@@ -88,7 +88,7 @@ function insertPlayground(L, optSource) {
     }
     res.setValue("");
   }
-    
+
   conc.on("change", function() { haveSource(conc.getValue()); });
   if (optSource) {
     conc.setValue(optSource);

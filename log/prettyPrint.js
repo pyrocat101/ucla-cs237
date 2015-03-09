@@ -43,6 +43,10 @@ Var.prototype.toString = function() {
   return this.name;
 };
 
+Num.prototype.toString = function() {
+  return this.x;
+};
+
 // --------------------------------------------------------------
 
 L.prettyPrintAST = function(ast) {
@@ -99,7 +103,11 @@ Clause.prototype.prettyPrint = function(strm) {
 Var.prototype.prettyPrint = function(strm) {
   strm.write('new Var("' + this.name + '")');
 };
-  
+
+Num.prototype.prettyPrint = function(strm) {
+  strm.write('new Num(' + this.x + ')');
+};
+
 function prettyPrintList(xs, strm) {
   strm.write("[");
   strm.indentToHere();

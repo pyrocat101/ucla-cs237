@@ -91,3 +91,5 @@ Var.prototype.recordVarNames = function(varNames) {
   varNames[this.name] = true;
 };
 
+Num.prototype.recordVarNames = function (varNames) {};
+

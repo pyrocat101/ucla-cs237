@@ -6,6 +6,7 @@
 - [X] [hw4][oo]
 - [X] [hw5][oo]
 - [X] [hw6][log]
+    + [X] arithemtic and `is/2`
     + [X] occurrence check
     + [ ] negation & cut operator
 

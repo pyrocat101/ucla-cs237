@@ -38,13 +38,20 @@ L {
     = Clause (',' Clause)*
 
   Term
-    = Clause | variable
+    = Clause | variable | number
 
   variable  -- variable
     = upper alnum*
 
   symbol  -- symbol
-    = lower alnum*
+    = lower alnum*    -- word
+    | opChar opChar*  -- graph
+
+  opChar
+    = '#' | '$' | '*' | '+' | '-' | '.' | '/' | ':' | '<' | '=' | '>' | '?' | '@' | '^' | '~' | '\\'
+
+  number  -- number
+    = digit+
 
   tokens
     = (variable | symbol | _)*
@@ -553,11 +560,17 @@ insertPlayground(
               Lots of opportunities for interesting extra-credit projects here! Highly recommended reading: Ron
               Ferguson's <a href="http://tinlizzie.org/~awarth/prolog-ferguson81.pdf">Prolog: A Step Toward the
               Ultimate Computer Language</a>.</li>
-            <li>Do the <a href="http://en.wikipedia.org/wiki/Occurs_check">occurs check</a> in 
+            <li>Do the <a href="http://en.wikipedia.org/wiki/Occurs_check">occurs check</a> in
               <code>Subst.prototype.unify</code>, then explain what it's for and how it works.</li>
             <li>Prolog finds solutions to a query by doing a depth-first search. Experiment with a different search
               strategy, e.g., breadth-first. What are the benefits and disadvantages of your alternative semantics?</li>
           </ul>
+        </p>
+        <h3>Unit Tests</h3>
+        <script src="tests-part4.js"></script>
+        <p>
+          You can add your own test cases to this list by editing
+          <a href="tests-part4.js"><code>tests-part4.js</code></a>.
         </p>
       </section>
     </everything>

@@ -10,7 +10,9 @@ var toAST = g.synthesizedAttribute({
   Clause_noArgs: function(sym)                 { return new Clause(toAST(sym)); },
   Clauses:       function(c, _, cs)            { return [toAST(c)].concat(toAST(cs)); },
   variable:      function(_, _)                { return new Var(this.interval.contents); },
-  symbol:        function(_, _)                { return this.interval.contents; },
+  symbol_word:   function(_, _)                { return this.interval.contents; },
+  symbol_graph:  function(_, _)                { return this.interval.contents; },
+  number:        function(_)                   { return new Num(parseFloat(this.interval.contents)); },
   _terminal: ohm.actions.getValue,
   _list: ohm.actions.map,
   _default: ohm.actions.passThrough
