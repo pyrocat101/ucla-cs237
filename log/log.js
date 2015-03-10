@@ -371,6 +371,10 @@ Program.builtins = {
       }
     }
   },
+  '!/0': function cut (clause, parent, stack, trace) {
+    stack.length = 0;
+    stack.push(new Goal(new Rule(clause), parent));
+  }
 };
 
 Program.isBuiltin = function (c) {

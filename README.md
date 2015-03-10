@@ -8,7 +8,9 @@
 - [X] [hw6][log]
     + [X] arithemtic and `is/2`
     + [X] occurrence check
-    + [ ] negation & cut operator
+    + [X] cut operator
+    + [ ] negation
+    + [ ] meta-programming
 
 [func]: http://pyrocat101.github.io/ucla-cs237/func/index.html
 [pm]: http://pyrocat101.github.io/ucla-cs237/pm/index.html
