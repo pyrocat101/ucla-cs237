@@ -1,4 +1,6 @@
-// -----------------------------------------------------------------------------
+/* global Rule, Clause, Var, Num, Program, Subst, console */
+
+'use strict';
 
 // -----------------------------------------------------------------------------
 // Part I: Rule.prototype.makeCopyWithFreshVarNames() and
@@ -68,7 +70,7 @@ Var.prototype.hasVar = function (v) {
 
 Num.prototype.hasVar = function (v) {
   return false;
-}
+};
 
 // Unification -----------------------------------------------------------------
 
@@ -79,7 +81,7 @@ function isFailedUnification (e) {
 Subst.prototype.unify = function (term1, term2) {
   if (term1 === term2) {
     return this;
-  } else if (isNum(term1) && isNum(term2) && term1.x == term2.x) {
+  } else if (isNum(term1) && isNum(term2) && term1.x === term2.x) {
     return this;
   } else if (isVar(term1)) {
     return this.unifyVariable(term1.name, term2);
@@ -93,7 +95,11 @@ Subst.prototype.unify = function (term1, term2) {
 };
 
 Subst.prototype.unifyVariable = function (name, term) {
-  if (this.lookup(name) !== undefined) {
+  if (name === '_') {
+    return this;
+  } else if (isVar(term) && term.name === '_') {
+    return this;
+  } else if (this.lookup(name) !== undefined) {
     // name is bound, should unify subst[name] and term
     return this.unify(this.lookup(name), term);
   } else if (isVar(term) && this.lookup(term) !== undefined) {
@@ -154,18 +160,7 @@ Var.prototype.show = function () {
 
 Num.prototype.show = function () {
   return this.x;
-}
-
-function showStack (stack) {
-  var sb = "stack: [\n";
-  stack.forEach(function (g) {
-    sb += "  ";
-    sb += g.show();
-    sb += "\n";
-  });
-  sb += "]";
-  return sb;
-}
+};
 
 // Iterator --------------------------------------------------------------------
 
@@ -258,6 +253,47 @@ Database.prototype.match = function (clause) {
   });
 };
 
+// Alterantive Stack -----------------------------------------------------------
+
+function Stack (trace) {
+  this.trace = trace;
+  this.stack = [];
+}
+
+Stack.prototype.pop = function () {
+  var x = this.stack.pop();
+  if (this.trace) {
+    console.log("\u21e1 pop  %s", x.show());
+  }
+  return x;
+};
+
+Stack.prototype.push = function (x) {
+  if (this.trace) {
+    console.log("\u21e3 push %s", x.show());
+  }
+  this.stack.push(x);
+};
+
+Stack.prototype.clear = function (x) {
+  this.stack.length = 0;
+};
+
+Stack.prototype.isEmpty = function () {
+  return this.stack.length === 0;
+};
+
+Stack.prototype.show = function () {
+  var sb = "stack: [\n";
+  this.stack.forEach(function (g) {
+    sb += "  ";
+    sb += g.show();
+    sb += "\n";
+  });
+  sb += "]";
+  return sb;
+};
+
 // SLD resolution --------------------------------------------------------------
 
 Program.prototype.solve = function (trace) {
@@ -270,28 +306,17 @@ Program.prototype.solve = function (trace) {
 Program.prototype.prove = function (db, query, trace) {
   var rule = new Rule(new Clause("*root*"), query),
       goal = new Goal(rule, null),
-      // TODO: move trace logic to stack functions
-      stack = [goal];
-  // TRACE stack
-  if (trace) {
-    console.log(showStack(stack));
-  }
-  var loopCount = 0;
-  // END TRACE
+      stack = new Stack(trace),
+      loopCount = 0;
+  stack.push(goal);
   return new Iterator(function prove$loop () {
-    while (stack.length > 0) {
+    while (!stack.isEmpty()) {
+      // loop limit
       if (loopCount >= 500) {
-        if (trace) {
-          console.log(showStack(stack));
-        }
+        stack.show();
         throw new Error("Something is wrong");
       }
-      var goal = stack.pop();
-      // TRACE pop
-      if (trace) {
-        console.log("\u21e1 pop          %s", goal.show());
-      }
-      // END TRACE
+      goal = stack.pop();
       if (goal.idx >= goal.countPremises()) {
         // finished all subgoals
         var parent = goal.parent;
@@ -304,29 +329,20 @@ Program.prototype.prove = function (db, query, trace) {
           parent = parent.rewrite(subst);
           parent.idx++;
           stack.push(parent);
-          // TRACE push
-          if (trace) {
-            console.log("\u21e3 push parent  %s", parent.show());
-          }
-          // END TRACE
         }
       } else {
+        // need to prove premises
         var clause = goal.currentPremise();
         if (Program.isBuiltin(clause)) {
-          Program.proveBuiltin(clause, goal, stack, trace);
+          Program.proveBuiltin(clause, goal, stack);
         } else {
           var rules = db.match(clause);
           rules.reverse();
           rules.forEach(function prove$forEach (r) {
             r = r.makeCopyWithFreshVarNames();
             try {
-              var subst = new Subst().unify(clause, r.head);
+              var subst = new Subst().unify(clause, r.head),
                   subgoal = new Goal(r.rewrite(subst), goal);
-              // TRACE stack
-              if (trace) {
-                console.log("\u21e3 push subgoal %s", subgoal.show());
-              }
-              // END TRACE
               stack.push(subgoal);
             } catch (e) {
               if (isFailedUnification(e)) {
@@ -344,6 +360,19 @@ Program.prototype.prove = function (db, query, trace) {
   });
 };
 
+// Negation as failure ---------------------------------------------------------
+
+function cutFail (clause, parent, stack) {
+  // not(Goal) :- Goal, !, fail.
+  // not(_).
+  var name = clause.name,
+      goal = clause.args[0],
+      rule1 = new Rule(clause, [goal, new Clause('!'), new Clause('fail')]),
+      rule2 = new Rule(new Clause(clause.name, [new Var('_')]));
+  stack.push(new Goal(rule2, parent));
+  stack.push(new Goal(rule1, parent));
+}
+
 // Builtin Predicates ----------------------------------------------------------
 
 Clause.prototype.getFunctor = function () {
@@ -351,17 +380,12 @@ Clause.prototype.getFunctor = function () {
 };
 
 Program.builtins = {
-  'is/2': function is$2 (clause, parent, stack, trace) {
+  'is/2': function is$2 (clause, parent, stack) {
     var lhs = clause.args[0],
         rhs = clause.args[1];
     try {
       var subst = new Subst().unify(lhs, Program.evalFunction(rhs));
       clause = clause.rewrite(subst);
-      // TRACE stack
-      if (trace) {
-        console.log("\u21e3 push subgoal %s", subgoal.show());
-      }
-      // END TRACE
       stack.push(new Goal(new Rule(clause), parent));
     } catch (e) {
       if (isFailedUnification(e)) {
@@ -371,20 +395,26 @@ Program.builtins = {
       }
     }
   },
-  '!/0': function cut (clause, parent, stack, trace) {
-    stack.length = 0;
+  '!/0': function cut (clause, parent, stack) {
+    stack.clear();
     stack.push(new Goal(new Rule(clause), parent));
-  }
+  },
+  'fail/0': function () {},
+  'true/0': function (clause, parent, stack) {
+    stack.push(new Goal(new Rule(clause), parent));
+  },
+  '\\+/1': cutFail,
+  'not/1': cutFail,
 };
 
 Program.isBuiltin = function (c) {
   return Program.builtins.hasOwnProperty(c.getFunctor());
 };
 
-Program.proveBuiltin = function (clause, parent, stack, trace) {
+Program.proveBuiltin = function (clause, parent, stack) {
   var functor = clause.getFunctor(),
       predicate = Program.builtins[functor];
-  predicate(clause, parent, stack, trace);
+  predicate(clause, parent, stack);
 };
 
 // Arithmetic Functions --------------------------------------------------------

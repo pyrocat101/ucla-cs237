@@ -61,6 +61,20 @@ tests(
           'd(4).\n' +
           'a(X)?',
     expected: makeIterator()
+  },
+  {
+    name: 'not (1/2)',
+    code: 'man(adam).\n' +
+          'woman(eve).\n' +
+          'not(man(adam))?',
+    expected: makeIterator()
+  },
+  {
+    name: 'not (2/2)',
+    code: 'man(adam).\n' +
+          'woman(eve).\n' +
+          'not(man(abel))?',
+    expected: makeIterator({})
   }
 );
 

@@ -9,8 +9,7 @@
     + [X] arithemtic and `is/2`
     + [X] occurrence check
     + [X] cut operator
-    + [ ] negation
-    + [ ] meta-programming
+    + [X] negation as failure (`not/1` or `\+/1`)
 
 [func]: http://pyrocat101.github.io/ucla-cs237/func/index.html
 [pm]: http://pyrocat101.github.io/ucla-cs237/pm/index.html
