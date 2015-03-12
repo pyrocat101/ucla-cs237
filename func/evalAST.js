@@ -63,35 +63,197 @@ function isUndefined(value) {
 
 // Variable bindings -----------------------------------------------------------
 
-var Env = function (name, value, enclose) {
-  this.name = name;
-  this.value = value;
-  this.enclose = enclose;
-}
-Env.empty = new Env(null, null, null);
-
-Env.prototype.put = function (name, value) {
-  return new Env(name, value, this)
-}
-
-Env.prototype.assq = function (name) {
-  var env = this;
-  while (env !== Env.empty) {
-    if (env.name === name) {
-      return env;
-    }
-    env = env.enclose;
+(function(root) {
+  "use strict";
+  var RED = 0, BLACK = 1;
+  function Tree(color, left, key, value, right) {
+    this.color = color;
+    this.left = left;
+    this.right = right;
+    this.key = key;
+    this.value = value;
   }
-  throw new Error("KeyError: " + name);
-}
-
-Env.prototype.get = function (name, value) {
-  return this.assq(name).value;
-}
-
-Env.prototype.set = function (name, value) {
-  this.assq(name).value = value;
-}
+  Tree.prototype.has = function(key) {
+    if (key < this.key) {
+      return this.left.has(key);
+    } else if (key > this.key) {
+      return this.right.has(key);
+    } else {
+      return true;
+    }
+  };
+  Tree.prototype.add = function(key, value) {
+    if (key < this.key) {
+      return this.$Tree_balance(this.color, this.left.add(key, value), this.key, this.value, this.right);
+    } else if (key > this.key) {
+      return this.$Tree_balance(this.color, this.left, this.key, this.value, this.right.add(key, value));
+    } else {
+      return new Tree(this.color, this.left, this.key, value, this.right);
+    }
+  };
+  Tree.prototype.set = function(key, value) {
+    if (key < this.key) {
+      this.left.set(key, value);
+    } else if (key > this.key) {
+      this.right.set(key, value);
+    } else {
+      this.value = value;
+    }
+  };
+  Tree.prototype.$Tree_balance = function(color, left, key, value, right) {
+    if (color === BLACK) {
+      // case 1
+      // ------
+      //        B
+      //       /|\
+      //      R z d            R
+      //     /|\              /|\
+      //    / | \            / | \
+      //   R  y  c    =>    B  y  B
+      //  /|\              /|\   /|\
+      // a x b            a x b c z d
+      //
+      // case 2
+      // ------
+      //       B
+      //      /|\
+      //     R z d              R
+      //    /|\                /|\
+      //   / | \              / | \
+      //  a  x  R     =>     B  y  B
+      //       /|\          /|\   /|\
+      //      b y c        a x b c z d
+      //
+      // case 3
+      // ------
+      //     B
+      //    /|\
+      //   a x R                R
+      //      /|\              /|\
+      //     / | \            / | \
+      //    R  z  d   =>     B  y  B
+      //   /|\              /|\   /|\
+      //  b y c            a x b c z d
+      //
+      // case 4
+      // ------
+      //    B
+      //   /|\
+      //  a x R                 R
+      //     /|\               /|\
+      //    / | \             / | \
+      //   b  y  R    =>     B  y  B
+      //        /|\         /|\   /|\
+      //       c z d       a x b c z d
+      //
+      if (left instanceof Tree && left.color === RED) {
+        if (left.left instanceof Tree && left.left.color === RED) {
+          // case 1
+          var level2 = left.left, l = new Tree(BLACK, level2.left, level2.key, level2.value, level2.right), r = new Tree(BLACK, left.right, key, value, right);
+          return new Tree(RED, l, left.key, left.value, r);
+        } else if (left.right instanceof Tree && left.right.color === RED) {
+          // case 2
+          var level2 = left.right, l = new Tree(BLACK, left.left, left.key, left.value, level2.left), r = new Tree(BLACK, level2.right, key, value, right);
+          return new Tree(RED, l, level2.key, level2.value, r);
+        }
+      } else if (right instanceof Tree && right.color === RED) {
+        if (right.left instanceof Tree && right.left.color === RED) {
+          // case 3
+          var level2 = right.left, l = new Tree(BLACK, left, key, value, level2.left), r = new Tree(BLACK, level2.right, right.key, right.value, right.right);
+          return new Tree(RED, l, level2.key, level2.value, r);
+        } else if (right.right instanceof Tree && right.right.color === RED) {
+          // case 4
+          var level2 = right.right;
+          l = new Tree(BLACK, left, key, value, right.left);
+          r = new Tree(BLACK, level2.left, level2.key, level2.value, level2.right);
+          return new Tree(RED, l, right.key, right.value, level2.right);
+        }
+      }
+    }
+    return new Tree(color, left, key, value, right);
+  };
+  Tree.prototype.get = function(key) {
+    if (key < this.key) {
+      return this.left.get(key);
+    } else if (key > this.key) {
+      return this.right.get(key);
+    } else {
+      return this.value;
+    }
+  };
+  Tree.prototype.count = function() {
+    return this.left.count() + 1 + this.right.count();
+  };
+  Tree.prototype.iter = function(fn) {
+    this.left.iter(fn);
+    fn(this.key, this.value);
+    this.right.iter(fn);
+  };
+  Tree.prototype.map = function(fn) {
+    var left = this.left.map(fn), value = fn(this.key, this.value), right = this.right.map(fn);
+    return new Tree(this.color, left, this.key, value, right);
+  };
+  Tree.prototype.reduce = function(fn, acc) {
+    acc = this.left.reduce(fn, acc);
+    acc = fn(this.key, this.value, acc);
+    return this.right.reduce(fn, acc);
+  };
+  Tree.prototype.toObject = function() {
+    var obj = {};
+    this.iter(function(k, v) {
+      obj[k] = v;
+    });
+    return obj;
+  };
+  function Empty() {}
+  Empty.prototype.has = function(key) {
+    return false;
+  };
+  Empty.prototype.add = function(key, value) {
+    return new Tree(RED, empty, key, value, empty);
+  };
+  Empty.prototype.set = function(key, value) {
+    throw new Error("invalid key: " + key);
+  };
+  Empty.prototype.get = function(key) {
+    return null;
+  };
+  Empty.prototype.count = function() {
+    return 0;
+  };
+  Empty.prototype.iter = function(fn) {};
+  Empty.prototype.map = function(fn) {
+    return this;
+  };
+  Empty.prototype.reduce = function(fn, acc) {
+    return acc;
+  };
+  Empty.prototype.toObject = function() {
+    return {};
+  };
+  var empty = new Empty();
+  function fromObject(obj) {
+    var t = empty;
+    for (var key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        t = t.add(key, obj[key]);
+      }
+    }
+    return t;
+  }
+  var moduleObj = {
+    empty: empty,
+    RBTree: Tree,
+    fromObject: fromObject
+  };
+  if (typeof exports !== "undefined") {
+    if (typeof module !== "undefined" && module.exports) {
+      exports = module.exports = moduleObj;
+    }
+  } else {
+    root.rbtree = moduleObj;
+  }
+})(this);
 
 // Evaluation ------------------------------------------------------------------
 
@@ -163,7 +325,7 @@ function evalCall(callee, args) {
     throw new Error("TypeError: function takes at most "+ params.length + " "+ (params.length <= 1 ? "argument" : "arguments") + " (" + args.length + " given)");
 
   env = args.reduce(function (env, arg, i) {
-    return env.put(params[i], arg);
+    return env.add(params[i], arg);
   }, env);
 
   if (params.length === args.length) {
@@ -200,9 +362,9 @@ var evaluators = {
     var name = ast[1],
         value = ast[2],
         body = ast[3];
-    env = env.put(name, undefined);
+    env = env.add(name, undefined);
     // let/rec
-    env.value = evalML(env)(value);
+    env.set(name, evalML(env)(value));
     return evalML(env)(body);
   },
   // ['if', e1, e2, e3]
@@ -273,7 +435,7 @@ var evaluators = {
         target = evalML(env)(ast[3]),
         pred = ast.length === 5 ? ast[4] : undefined;
     return consFoldr(target, function (acc, x) {
-      var newEnv = env.put(iter, x);
+      var newEnv = env.add(iter, x);
       if (!isUndefined(pred) && !evalML(newEnv)(pred)) {
         return acc;
       } else {
@@ -311,7 +473,7 @@ function patternMatch(pat, expr, env) {
     return env;
   } else if (isID(pat)) {
     var name = pat[1];
-    return env.put(name, expr);
+    return env.add(name, expr);
   } else {
     return null;
   }
@@ -332,6 +494,6 @@ function evalML(env) {
 // Prelude ---------------------------------------------------------------------
 
 F.evalAST = function (ast) {
-  var env = Env.empty;
+  var env = rbtree.empty;
   return evalML(env)(ast);
 };
