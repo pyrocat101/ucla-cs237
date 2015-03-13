@@ -38,7 +38,7 @@ Clause.prototype.rewrite = function (subst) {
 Var.prototype.rewrite = function (subst) {
   var value = subst.lookup(this.name);
   if (value !== undefined) {
-    return value;
+    return value.rewrite(subst);
   } else {
     return this;
   }
