@@ -81,6 +81,8 @@ function isFailedUnification (e) {
 Subst.prototype.unify = function (term1, term2) {
   if (term1 === term2) {
     return this;
+  } else if (isVar(term1) && isVar(term2) && term1.name === term2.name) {
+    return this;
   } else if (isNum(term1) && isNum(term2) && term1.x === term2.x) {
     return this;
   } else if (isVar(term1)) {
