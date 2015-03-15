@@ -332,10 +332,18 @@ Program.prototype.prove = function (db, query, trace) {
           return new Subst().unifyList(goal.rule.body, query);
         } else {
           // back propagation
-          var subst = new Subst().unify(goal.getConclusion(), parent.currentPremise());
-          parent = parent.rewrite(subst);
-          parent.idx++;
-          stack.push(parent);
+          try {
+            var subst = new Subst().unify(goal.getConclusion(), parent.currentPremise());
+            parent = parent.rewrite(subst);
+            parent.idx++;
+            stack.push(parent);
+          } catch (e) {
+            if (isFailedUnification(e)) {
+              continue;
+            } else {
+              throw e;
+            }
+          }
         }
       } else {
         // need to prove premises
