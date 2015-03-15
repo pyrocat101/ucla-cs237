@@ -60,15 +60,20 @@ function isClause (o) { return o instanceof Clause; }
 
 // Free varaiable --------------------------------------------------------------
 
-Clause.prototype.hasVar = function (v) {
-  return this.args.some(function (t) { return t.hasVar(v); });
+Clause.prototype.hasVar = function (v, subst) {
+  return this.args.some(function (t) { return t.hasVar(v, subst); });
 };
 
-Var.prototype.hasVar = function (v) {
-  return v === this.name;
+Var.prototype.hasVar = function (v, subst) {
+  var val = subst.lookup(v);
+  if (val === undefined) {
+    return v === this.name;
+  } else {
+    return val.hasVar(v, subst);
+  }
 };
 
-Num.prototype.hasVar = function (v) {
+Num.prototype.hasVar = function (v, subst) {
   return false;
 };
 
@@ -107,7 +112,7 @@ Subst.prototype.unifyVariable = function (name, term) {
   } else if (isVar(term) && this.lookup(term) !== undefined) {
     // term is a bound variable, should unify name and subst[term]
     return this.unify(new Var(name), this.lookup(term));
-  } else if (term.hasVar(name)) {
+  } else if (term.hasVar(name, this)) {
     // name is not bound, and term is not bound variable.
     // but name occurred in term
     throw new Error("unification failed");
